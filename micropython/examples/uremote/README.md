@@ -1,6 +1,6 @@
 # AI line follower, card robot and pose recognition with uRemote
 
-Three classroom projects for a **LEGO SPIKE Prime** robot with an **ELECFREAKS AI Lens Pro** camera and an [LMS-ESP32](https://www.antonsmindstorms.com/product/wifi-python-esp32-board-for-mindstorms/). The hub runs Pybricks (blocks or Python) and asks the LMS-ESP32 what the camera sees, over [uRemote](https://github.com/AntonsMindstorms/uRemote).
+Three classroom projects for a **LEGO SPIKE Prime** robot with an **ELECFREAKS AI Lens Pro** camera and an [LMS-ESP32](https://www.antonsmindstorms.com/product/powerful-lms-esp32-board-for-spike-and-mindstorms/). The hub runs Pybricks (blocks or Python) and asks the LMS-ESP32 what the camera sees, over [uRemote](https://github.com/AntonsMindstorms/uRemote).
 
 ![SPIKE Prime robot with AI Lens Pro following a line](../../../images/ai-lens-pro-lego-spike-prime-line-follower.jpg)
 
@@ -26,7 +26,7 @@ Prefer blocks on the LMS-ESP32 too? Use the [MicroBlocks version](../../../micro
 
 ## Set up the SPIKE Prime hub
 
-1. Install a [Pybricks firmware with UARTDevice](https://github.com/AntonsMindstorms/uRemote#1-flash-pybricks-firmware-with-uartdevice) on the hub. uRemote needs it; the standard Pybricks firmware doesn't have it.
+1. Install the standard Pybricks firmware on the hub with [code.pybricks.com](https://code.pybricks.com). uRemote uses `UARTDevice`, which is built in since Pybricks 4.0.
 2. Open [code.pybricks.com](https://code.pybricks.com) and import [uremote.py](https://github.com/AntonsMindstorms/uRemote/blob/main/library/uremote.py) into your project.
 3. Import one of the hub programs below. They open as **Pybricks Blocks**, so students can read and change them as blocks.
 4. Plug the LMS-ESP32 into **port A**, the left wheel motor into **port F** and the right wheel motor into **port E**.
@@ -95,7 +95,7 @@ Each command puts the camera in the right mode by itself: run the line follower,
 
 | Problem | Try this |
 | --- | --- |
-| `No data` error on the hub | Is the LMS-ESP32 on port A, running `main.py`? Does the hub have the Pybricks firmware with UARTDevice? |
+| `No data` error on the hub | Is the LMS-ESP32 on port A, running `main.py`? Does the hub run Pybricks 4.0 or newer? |
 | The robot doesn't react | Is the AI Lens Pro switched on? Check the pins at the top of `main.py`. |
 | The robot steers the wrong way | Swap the motor ports, or the sign of the turn factors. |
 

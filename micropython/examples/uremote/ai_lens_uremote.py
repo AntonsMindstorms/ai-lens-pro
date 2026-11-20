@@ -22,16 +22,6 @@
 #   seen; 15 = forward, 16 = turn around, 17 = left, 18 = right.
 # pose: the name of the pose the lens sees, such as 'Raise Hand', or -1.
 from uremote import uRemote
-#   ur = uRemote(Port.A)
-#   seen, near_x, near_y, far_x, far_y, angle = ur.line()
-#   card_id, confidence, x, y, size = ur.card()
-#
-# line: seen (0/1), then the near and far end of the line with the origin at
-#   the bottom center of the screen (x right, y up), then the angle in degrees.
-#   Everything is 0 when no line is seen.
-# card: the largest card: id (-1 when none), confidence (%), x, y, size
-#   (pixels, origin top left).
-from uremote import uRemote
 from ailenspro import POSE, AILensPro, LINE, CARD
 
 # Configure pins for your setup! 
@@ -42,7 +32,6 @@ lens = AILensPro(scl=AI_LENS_GREEN_WIRE, sda=AI_LENS_YELLOW_WIRE)
 def line():
     if not lens.switch_to(LINE, wait=False) or lens.update() is None or not lens.line_detected:
         return 0, 0, 0
-    near, far = lens.line_near_end, lens.line_far_end
     return 1, lens.line_offset, lens.line_angle
 
 

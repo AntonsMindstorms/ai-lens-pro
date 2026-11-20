@@ -1,6 +1,6 @@
 # AI Lens Pro library for MicroBlocks
 
-Program the **ELECFREAKS AI Lens Pro** AI camera with blocks in [MicroBlocks](https://microblocks.fun), on an [LMS-ESP32](https://www.antonsmindstorms.com/product/wifi-python-esp32-board-for-mindstorms/), a micro:bit or another MicroBlocks board. Recognize cards, follow lines, detect poses, faces, objects and more.
+Program the **ELECFREAKS AI Lens Pro** AI camera with blocks in [MicroBlocks](https://microblocks.fun), on an [LMS-ESP32](https://www.antonsmindstorms.com/product/powerful-lms-esp32-board-for-spike-and-mindstorms/), a micro:bit or another MicroBlocks board. Recognize cards, follow lines, detect poses, faces, objects and more.
 
 | File | What it is |
 | --- | --- |

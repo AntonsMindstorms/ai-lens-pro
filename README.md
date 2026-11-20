@@ -1,6 +1,6 @@
 # AI Lens Pro for LEGO SPIKE Prime, MicroBlocks and MicroPython
 
-**Give your LEGO robot AI vision.** Free libraries and classroom-ready examples for the **ELECFREAKS PlanetX AI Lens Pro** (EF05074) AI camera: follow a line, obey picture cards, and recognize poses with a LEGO® SPIKE™ Prime robot, an [LMS-ESP32](https://www.antonsmindstorms.com/product/wifi-python-esp32-board-for-mindstorms/) and Pybricks. Program it with blocks (MicroBlocks, Pybricks Blocks) or with Python (MicroPython).
+**Give your LEGO robot AI vision.** Free libraries and classroom-ready examples for the **ELECFREAKS PlanetX AI Lens Pro** (EF05074) AI camera: follow a line, obey picture cards, and recognize poses with a LEGO® SPIKE™ Prime robot, an [LMS-ESP32](https://www.antonsmindstorms.com/product/powerful-lms-esp32-board-for-spike-and-mindstorms/) and Pybricks. Program it with blocks (MicroBlocks, Pybricks Blocks) or with Python (MicroPython).
 
 Made by [Anton's Mindstorms](https://www.antonsmindstorms.com) for STEM teachers, robotics clubs and makers.
 
@@ -23,7 +23,7 @@ Made by [Anton's Mindstorms](https://www.antonsmindstorms.com) for STEM teachers
 | Part | Notes |
 | --- | --- |
 | [ELECFREAKS AI Lens Pro](https://shop.elecfreaks.com?sca_ref=12706106.oeApChx3rLk5) (EF05074) | The AI camera. It has its own battery and screen. Use code **AN15** for 15% off at the ELECFREAKS shop. |
-| [LMS-ESP32](https://www.antonsmindstorms.com/product/wifi-python-esp32-board-for-mindstorms/) | Connects the camera to a LEGO hub, and runs MicroPython or MicroBlocks. |
+| [LMS-ESP32](https://www.antonsmindstorms.com/product/powerful-lms-esp32-board-for-spike-and-mindstorms/) | Connects the camera to a LEGO hub, and runs MicroPython or MicroBlocks. |
 | LEGO SPIKE Prime or MINDSTORMS Robot Inventor hub | Running [Pybricks](https://code.pybricks.com). Our test robot drives with motors on ports E and F, with the LMS-ESP32 on port A. |
 | A computer with Chrome or Edge | For the Pybricks and MicroBlocks web editors. |
 
@@ -99,7 +99,7 @@ Every result has the same properties: **x, y, width, height, id, name, confidenc
 ## FAQ
 
 **Can I use the ELECFREAKS AI Lens Pro with LEGO SPIKE Prime?**
-Yes. Connect the camera to an [LMS-ESP32](https://www.antonsmindstorms.com/product/wifi-python-esp32-board-for-mindstorms/), plug the LMS-ESP32 into the hub, and run Pybricks on the hub. The examples in this repository show line following, card recognition and pose recognition.
+Yes. Connect the camera to an [LMS-ESP32](https://www.antonsmindstorms.com/product/powerful-lms-esp32-board-for-spike-and-mindstorms/), plug the LMS-ESP32 into the hub, and run Pybricks on the hub. The examples in this repository show line following, card recognition and pose recognition.
 
 **Does it work with the LEGO SPIKE app (Scratch / Word Blocks)?**
 These examples use Pybricks, which you can program with blocks or Python. Pybricks replaces the SPIKE firmware; you can switch back at any time.
@@ -118,7 +118,7 @@ A color sensor sees one spot under the robot. The camera sees the line ahead, in
 
 ## More from Anton's Mindstorms
 
-- [LMS-ESP32](https://www.antonsmindstorms.com/product/wifi-python-esp32-board-for-mindstorms/): the WiFi Python ESP32 board for LEGO MINDSTORMS and SPIKE
+- [LMS-ESP32](https://www.antonsmindstorms.com/product/powerful-lms-esp32-board-for-spike-and-mindstorms/): the WiFi Python ESP32 board for LEGO MINDSTORMS and SPIKE
 - [LMS-ESP32 firmware](https://firmware.antonsmindstorms.com): flash MicroPython onto the LMS-ESP32 from your browser
 - [uRemote](https://github.com/AntonsMindstorms/uRemote) and [PUPRemote](https://github.com/antonvh/PUPRemote): connect the LMS-ESP32 to LEGO hubs
 - [antonsmindstorms.com](https://www.antonsmindstorms.com): building instructions, tutorials and robotics hardware for LEGO

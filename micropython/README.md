@@ -1,6 +1,6 @@
 # AI Lens Pro library for MicroPython
 
-A MicroPython driver for the **ELECFREAKS AI Lens Pro** AI camera, made for the [LMS-ESP32](https://www.antonsmindstorms.com/product/wifi-python-esp32-board-for-mindstorms/). It works on any MicroPython board with I2C.
+A MicroPython driver for the **ELECFREAKS AI Lens Pro** AI camera, made for the [LMS-ESP32](https://www.antonsmindstorms.com/product/powerful-lms-esp32-board-for-spike-and-mindstorms/). It works on any MicroPython board with I2C.
 
 ## Install
 

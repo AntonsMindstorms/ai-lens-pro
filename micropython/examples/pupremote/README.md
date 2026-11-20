@@ -1,6 +1,6 @@
 # AI line follower and card robot with PUPRemote
 
-A **LEGO SPIKE Prime** robot with an **ELECFREAKS AI Lens Pro** camera and an [LMS-ESP32](https://www.antonsmindstorms.com/product/wifi-python-esp32-board-for-mindstorms/) follows a line or drives by picture cards. The hub runs the **standard Pybricks firmware** and talks to the LMS-ESP32 over [PUPRemote](https://github.com/antonvh/PUPRemote): the LMS-ESP32 acts like a LEGO sensor.
+A **LEGO SPIKE Prime** robot with an **ELECFREAKS AI Lens Pro** camera and an [LMS-ESP32](https://www.antonsmindstorms.com/product/powerful-lms-esp32-board-for-spike-and-mindstorms/) follows a line or drives by picture cards. The hub runs the **standard Pybricks firmware** and talks to the LMS-ESP32 over [PUPRemote](https://github.com/antonvh/PUPRemote): the LMS-ESP32 acts like a LEGO sensor.
 
 ![SPIKE Prime robot with AI Lens Pro following a line](../../../images/ai-lens-pro-lego-spike-prime-line-follower.jpg)
 
