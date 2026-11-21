@@ -148,9 +148,9 @@ def test_pose():
     dev.results[al.POSE] = bytes([2, 1, 1, 1] + rec)
     gp.call('AI Lens Pro update')
     assert value(gp, 'height') == 400
-    assert gp.call('AI Lens Pro keypoint', 'nose', 'x') == -1
-    assert gp.call('AI Lens Pro keypoint', 'left wrist', 'x') == 109
-    assert gp.call('AI Lens Pro keypoint', 'right ankle', 'y') == 216
+    assert gp.call('AI Lens Pro keypoint', 'x', 'nose') == -1
+    assert gp.call('AI Lens Pro keypoint', 'x', 'left wrist') == 109
+    assert gp.call('AI Lens Pro keypoint', 'y', 'right ankle') == 216
 
 
 def test_color():
