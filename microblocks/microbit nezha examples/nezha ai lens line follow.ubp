@@ -1,0 +1,1379 @@
+module main
+author unknown
+version 1 0 
+description ''
+variables speed turn 
+
+script 154 62 {
+whenStarted
+'AI Lens Pro init'
+'AI Lens Pro switch to' 'line following'
+forever {
+  'AI Lens Pro update'
+  if true {
+    speed = (10 - ((absoluteValue ('AI Lens Pro info' 'line angle')) / 10))
+    turn = ((('AI Lens Pro info' 'line offset') / 16) + (('AI Lens Pro info' 'line angle') / 12))
+    nezhaPro_runMotor 'M1' 'counter-clockwise' (speed + turn)
+    nezhaPro_runMotor 'M2' 'clockwise' (speed - turn)
+  } else {
+    nezhaPro_stopAll
+  }
+}
+}
+
+script 786 497 {
+nezhaPro_stopAll
+}
+
+
+module 'AI Lens Pro' Input
+author 'Anton's Mindstorms'
+version 1 1 
+choices ail_info name id confidence 'line offset' 'line angle' 'line detected' 'line direction' 'tracking lost' blinks 'mouth opens' bpm beats 'rhythm duration (ms)' 'rhythm recognized' text 'closest to center' 'all results' function connected 'WiFi connected' 
+choices ail_keypoints nose 'left eye' 'right eye' 'left ear' 'right ear' 'left shoulder' 'right shoulder' 'left elbow' 'right elbow' 'left wrist' 'right wrist' 'left hip' 'right hip' 'left knee' 'right knee' 'left ankle' 'right ankle' 
+choices ail_things anything 'red ball' 'blue ball' stop forward left right 'turn around' person cat dog happy sad red green blue 
+choices ail_apps 'face recognition' 'expression recognition' 'gesture recognition' 'pose recognition' 'object recognition' 'object tracking' 'ball recognition' 'card recognition' 'color recognition' 'line following' 'text recognition' 'QR and barcodes' 'self learning' 'rhythm recognition' 'main menu' camera photos settings 'file manager' 
+choices ail_props x y width height id name confidence color 
+choices ail_xy x y 
+choices ail_cmds 'basic colors' 'learned colors' 'start tracking' 'stop tracking' 'learn ID' 'forget ID' 'clear text region' 'record rhythm (s)' 'analyse sound file' 
+description 'ELECFREAKS PlanetX AI Lens Pro (EF05074) AI camera over I2C.
+
+Faces, expressions, gestures, poses, objects, balls, cards, colors, lines, text (OCR), QR and barcodes, object tracking, self learning and rhythm.
+
+How to use:
+1. AI Lens Pro init (on LMS-ESP32: expand it and use whatever wires you plugged the camera in)
+2. AI Lens Pro switch to app. For example card recognition.
+3. In a loop: AI Lens Pro update, then use AI Lens Pro reporter block with (some property).
+
+Results are sorted largest first. Positions are centers in a 640 x 480 image. Confidence is 0..100.
+
+micro:bit: connect to the I2C port of a PlanetX / Nezha board (SDA on P20, is SCL on P19).
+
+By Anton''s Mindstorms, antonsmindstorms.com. License: GPL-3.0.
+'
+variables _ail_addr _ail_lock _ail_app _ail_results _ail_count _ail_closest _ail_blinks _ail_mouth _ail_line _ail_lost _ail_ball_flags _ail_rhythm _ail_keypoints _ail_wifi_seq _ail_app_names _ail_app_ids _ail_card_names 
+
+  spec ' ' 'AI Lens Pro init' 'AI Lens Pro init : SDA pin _ SCL pin _' 'num num' 20 19
+  spec ' ' 'AI Lens Pro switch to' 'AI Lens Pro switch to _' 'menu.ail_apps' 'card recognition'
+  spec ' ' 'AI Lens Pro update' 'AI Lens Pro update'
+  spec ' ' 'AI Lens Pro light' 'AI Lens Pro light _ %' 'num' 80
+  space
+  spec 'r' 'AI Lens Pro sees' 'AI Lens Pro sees _' 'auto.ail_things' 'anything'
+  spec 'r' 'AI Lens Pro count' 'AI Lens Pro count'
+  spec 'r' 'AI Lens Pro value' 'AI Lens Pro _ of result _' 'menu.ail_props auto' 'x' 1
+  spec 'r' 'AI Lens Pro find' 'AI Lens Pro find _' 'auto.ail_things' 'stop'
+  spec 'r' 'AI Lens Pro info' 'AI Lens Pro _' 'menu.ail_info' 'name'
+  spec 'r' 'AI Lens Pro keypoint' 'AI Lens Pro pose _ _' 'menu.ail_keypoints menu.ail_xy' 'nose' 'x'
+  space
+  spec ' ' 'AI Lens Pro command' 'AI Lens Pro _ : _' 'menu.ail_cmds auto' 'learn ID' ''
+  spec ' ' 'AI Lens Pro text region' 'AI Lens Pro text region x1 _ y1 _ x2 _ y2 _' 'num num num num' 0 0 640 480
+  spec ' ' 'AI Lens Pro connect WiFi' 'AI Lens Pro connect WiFi _ password _' 'str str' 'network' 'password'
+  space
+  spec ' ' '_ail setup' '_ail setup'
+  spec 'r' '_ail i2c' '_ail i2c command _ params _ reply size _' 'num auto num' 0 '' 0
+  spec ' ' '_ail send' '_ail send app command _ payload _' 'num auto' 0 ''
+  spec 'r' '_ail read register' '_ail read register _ count _' 'num num' 100 1
+  spec 'r' '_ail read app' '_ail read app'
+  spec 'r' '_ail u16' '_ail u16 _ at _' 'auto num' '' 1
+  spec 'r' '_ail text' '_ail text _ at _ length _' 'auto num num' '' 1 0
+  spec 'r' '_ail lower' '_ail lower _' 'auto' ''
+  spec 'r' '_ail wifi' '_ail wifi message _ seq _' 'num num' -1 0
+  spec 'r' '_ail parse simple' '_ail parse simple _' 'num' 17
+  spec 'r' '_ail parse boxes' '_ail parse boxes _' 'num' 38
+  spec 'r' '_ail parse labeled' '_ail parse labeled _' 'num' 31
+  spec 'r' '_ail parse face' '_ail parse face'
+  spec 'r' '_ail parse pose' '_ail parse pose'
+  spec 'r' '_ail parse color' '_ail parse color'
+  spec 'r' '_ail parse misc' '_ail parse misc _' 'num' 33
+
+to 'AI Lens Pro command' what value {
+  comment 'basic colors / learned colors (color recognition), start / stop tracking (the object in the center), learn ID 1..30 / forget ID (0 = all) for self learning, clear text region, record rhythm (s) 1..25 seconds, analyse sound file (a .wav file on the SD card of the lens). Expand the block to give a value.'
+  '_ail setup'
+  local 'v' (argOrDefault 2 '')
+  local 'cmd' 0
+  local 'payload' ('[data:makeList]' 0)
+  if (or (what == 'basic colors') (what == 'learned colors')) {
+    if (('_ail read app') != 37) {'AI Lens Pro switch to' 'color recognition'}
+    cmd = 68
+    if (what == 'basic colors') {
+      payload = ('[data:makeList]' 1)
+    }
+  } (what == 'start tracking') {
+    _ail_lost = false
+    cmd = 71
+    comment 'box 220, 140, 420, 340 as 16-bit little-endian numbers'
+    payload = ('[data:makeList]' 1 220 0 140 0 164 1 84 1)
+  } (what == 'stop tracking') {
+    cmd = 71
+  } (what == 'learn ID') {
+    if (v == '') {v = 1}
+    if (and (v >= 1) (v <= 30)) {
+      cmd = 72
+      payload = ('[data:makeList]' 1 v)
+    }
+  } (what == 'forget ID') {
+    if (v == '') {v = 0}
+    if (and (v >= 0) (v <= 30)) {
+      cmd = 72
+      payload = ('[data:makeList]' 2 v)
+    }
+  } (what == 'clear text region') {
+    cmd = 69
+  } (what == 'record rhythm (s)') {
+    if (v == '') {v = 10}
+    '_ail send' 56 ('[data:makeList]' 3)
+    waitMillis ((maximum 1 (minimum 25 v)) * 1000)
+    cmd = 56
+    payload = ('[data:makeList]' 2)
+  } (what == 'analyse sound file') {
+    local 'bytes' ('[data:convertType]' v 'byte array')
+    if ((size bytes) > 0) {
+      '_ail send' 55 ('[data:join]' ('[data:asByteArray]' ('[data:makeList]' (size bytes))) bytes)
+      waitMillis 30
+      cmd = 58
+      payload = ('[data:makeList]' 1)
+    }
+  }
+  if (cmd > 0) {
+    '_ail send' cmd payload
+  }
+  if (cmd == 68) {
+    waitMillis 30
+  }
+}
+
+to 'AI Lens Pro connect WiFi' ssid password {
+  comment 'Connects the lens itself to WiFi, for remote file management. Waits up to 60 seconds.'
+  '_ail setup'
+  local 's' ('[data:convertType]' ssid 'byte array')
+  local 'p' ('[data:convertType]' password 'byte array')
+  _ail_wifi_seq = ((_ail_wifi_seq % 255) + 1)
+  local 'seq' _ail_wifi_seq
+  local 'payload' ('[data:join]' ('[data:asByteArray]' ('[data:makeList]' seq (size s) (size p))) s p)
+  local 'accepted' false
+  local 'tries' 0
+  repeatUntil (or accepted (tries >= 5)) {
+    '_ail send' 65 payload
+    local 'sent' (millisOp)
+    local 'waiting' true
+    repeatUntil (not waiting) {
+      local 'msg' ('_ail wifi' -1 seq)
+      if ((size msg) == 3) {
+        if ((at 1 msg) == 18) {accepted = true}
+        if (or ((at 1 msg) == 18) ((at 1 msg) == 19)) {waiting = false}
+      }
+      if (((millisOp) - sent) > 3500) {
+        waiting = false
+      }
+    }
+    tries += 1
+    if (not accepted) {
+      waitMillis 120
+    }
+  }
+  if (not accepted) {
+    sayIt 'AI Lens Pro: WiFi request not accepted'
+    return
+  }
+  local 'start' (millisOp)
+  repeatUntil (((millisOp) - start) > 60000) {
+    local 'st' ('_ail wifi' 17 0)
+    if ((size st) == 3) {
+      if (and ((at 2 st) == 4) (((at 3 st) & 4) != 0)) {return}
+      if ((at 2 st) == 5) {
+        sayIt 'AI Lens Pro: WiFi connection failed'
+        return
+      }
+    }
+    waitMillis 400
+  }
+}
+
+to 'AI Lens Pro count' {
+  comment 'How many things the lens sees (after AI Lens Pro update).'
+  '_ail setup'
+  return _ail_count
+}
+
+to 'AI Lens Pro find' what {
+  comment 'Number of the first (largest) result with this name or ID, or 0 when it is not seen. Not case sensitive.'
+  '_ail setup'
+  local 'key' ('_ail lower' what)
+  for i (size _ail_results) {
+    local 'r' (at i _ail_results)
+    if (('_ail lower' (at 6 r)) == key) {
+      return i
+    }
+    if (('[data:join]' '' (at 5 r)) == key) {
+      return i
+    }
+  }
+  return 0
+}
+
+to 'AI Lens Pro info' what {
+  comment 'Name, ID and confidence of the largest result (card, pose, object, face, ...; ID is -1 when there is none). Line following: offset (-320 left .. 320 right), angle (degrees, negative = left), detected, direction (left, center, right or none). Face recognition: blinks and mouth opens counters. Rhythm: bpm, beats, duration, recognized. Also: recognized text or QR content, the result closest to the center, all results (list of x y width height id name confidence color), the active function, and whether the lens or its WiFi is connected.'
+  '_ail setup'
+  local 'i' ('[data:find]' what ('[data:makeList]' 'line detected' 'line offset' 'line angle' 'rhythm recognized' 'bpm' 'beats' 'rhythm duration (ms)' 'tracking lost' 'blinks' 'mouth opens' 'all results' 'closest to center'))
+  if (i > 0) {
+    return (at i ('[data:join]' _ail_line _ail_rhythm ('[data:makeList]' _ail_lost _ail_blinks _ail_mouth _ail_results _ail_closest)))
+  }
+  if (and (what == 'id') ((size _ail_results) < 1)) {
+    return -1
+  }
+  if (what == 'line direction') {
+    if (not (at 1 _ail_line)) {return 'none'}
+    if ((at 3 _ail_line) < -10) {return 'left'}
+    if ((at 3 _ail_line) > 10) {return 'right'}
+    return 'center'
+  } (what == 'text') {
+    if (and (or (_ail_app == 32) (_ail_app == 39)) ((size _ail_results) > 0)) {return (at 6 (at 1 _ail_results))}
+    return ''
+  } (what == 'function') {
+    i = ('[data:find]' ('_ail read app') _ail_app_ids)
+    if (i < 1) {
+      return ''
+    }
+    return (at i _ail_app_names)
+  } (what == 'connected') {
+    return (('_ail read app') > 0)
+  } (what == 'WiFi connected') {
+    local 'st' ('_ail wifi' 17 0)
+    if ((size st) < 3) {
+      return false
+    }
+    return (and ((at 2 st) == 4) (((at 3 st) & 4) != 0))
+  }
+  comment 'name, id, confidence (or another property) of the largest result'
+  return ('AI Lens Pro value' what 1)
+}
+
+to 'AI Lens Pro init' sda scl {
+  comment 'Starts I2C and waits until the lens answers. Expand the block to choose I2C pins: SDA 5 and SCL 4 on the LMS-ESP32. Keep it collapsed on micro:bit.'
+  '_ail setup'
+  _ail_lock = 0
+  local 'sdaPin' (argOrDefault 1 -1)
+  local 'sclPin' (argOrDefault 2 -1)
+  if (and (sdaPin >= 0) (sclPin >= 0)) {
+    '[sensors:i2cSetPins]' sdaPin sclPin
+  }
+  '[sensors:i2cSetClockSpeed]' 100000
+  local 'start' (millisOp)
+  repeatUntil (((millisOp) - start) > 3000) {
+    _ail_app = ('_ail read app')
+    if (_ail_app > 0) {
+      return
+    }
+    waitMillis 50
+  }
+  sayIt 'AI Lens Pro not found. Check the cable and switch the lens on.'
+}
+
+to 'AI Lens Pro keypoint' part axis {
+  comment 'Pose recognition: x or y of a body point of the person. -1 when that point is not visible.'
+  '_ail setup'
+  local 'k' ('[data:find]' part ('[data:split]' 'nose,left eye,right eye,left ear,right ear,left shoulder,right shoulder,left elbow,right elbow,left wrist,right wrist,left hip,right hip,left knee,right knee,left ankle,right ankle' ','))
+  if (k < 1) {
+    return -1
+  }
+  local 'i' ((k * 2) - 1)
+  if (axis == 'y') {
+    i += 1
+  }
+  return (at i _ail_keypoints)
+}
+
+to 'AI Lens Pro light' level {
+  comment 'Switches the white fill light on with this brightness (5..100 %), or off with 0.'
+  '_ail setup'
+  if (level <= 0) {
+    '_ail send' 70 ('[data:makeList]' 0 0)
+  } else {
+    '_ail send' 70 ('[data:makeList]' 1 (maximum 5 (minimum 100 level)))
+  }
+}
+
+to 'AI Lens Pro sees' what {
+  comment 'True when the lens sees something with this name (stop, person, happy, red, A, 3, ...) or ID. Use anything for any result, and red ball / blue ball in ball recognition.'
+  '_ail setup'
+  if (or (what == '') (what == 'anything')) {
+    return (_ail_count > 0)
+  }
+  if (what == 'red ball') {
+    return ((_ail_ball_flags & 64) != 0)
+  }
+  if (what == 'blue ball') {
+    return ((_ail_ball_flags & 128) != 0)
+  }
+  return (('AI Lens Pro find' what) > 0)
+}
+
+to 'AI Lens Pro switch to' appName {
+  comment 'Switches the lens to a function and waits until it is active (this can take a few seconds).'
+  '_ail setup'
+  local 'id' appName
+  if (not (isType appName 'number')) {
+    local 'i' ('[data:find]' appName _ail_app_names)
+    if (i < 1) {
+      return
+    }
+    id = (at i _ail_app_ids)
+  }
+  if (('_ail read app') == id) {
+    _ail_app = id
+    return
+  }
+  repeat 4 {
+    '_ail send' id ('[data:makeList]' 0)
+    local 'start' (millisOp)
+    local 'misses' 0
+    repeatUntil (((millisOp) - start) > 6000) {
+      waitMillis 20
+      local 'now' ('_ail read app')
+      if (now == id) {
+        _ail_app = id
+        _ail_results = ('[data:makeList]')
+        _ail_count = 0
+        return
+      }
+      if (now < 0) {
+        misses += 1
+        if (misses >= 5) {
+          return
+        }
+      } else {
+        misses = 0
+      }
+    }
+    waitMillis 120
+  }
+}
+
+to 'AI Lens Pro text region' x1 y1 x2 y2 {
+  comment 'Text recognition: only read text inside this box. Use AI Lens Pro clear text region to read everywhere again.'
+  '_ail setup'
+  local 'out' ('[data:makeList]' 1)
+  local 'k' 0
+  for v ('[data:makeList]' x1 y1 x2 y2) {
+    k += 1
+    v = (maximum 0 (minimum (at k ('[data:makeList]' 480 640 480 640)) v))
+    '[data:addLast]' (v & 255) out
+    '[data:addLast]' ((v >> 8) & 255) out
+  }
+  '_ail send' 69 out
+}
+
+to 'AI Lens Pro update' {
+  comment 'Reads the latest results of the active function. Use this once in every loop, before sees, count and result blocks.'
+  '_ail setup'
+  local 'app' ('_ail read app')
+  if (app < 0) {
+    return
+  }
+  _ail_app = app
+  if (app != 30) {
+    _ail_ball_flags = 0
+  }
+  local 'r' ('[data:makeList]' 0 ('[data:makeList]'))
+  if (app == 16) {
+    r = ('_ail parse face')
+  } (app == 36) {
+    r = ('_ail parse pose')
+  } (app == 37) {
+    r = ('_ail parse color')
+  } (or (app == 17) (app == 18) (app == 32) (app == 39)) {
+    r = ('_ail parse simple' app)
+  } (or (app == 30) (app == 38)) {
+    r = ('_ail parse boxes' app)
+  } (or (app == 31) (app == 35)) {
+    r = ('_ail parse labeled' app)
+  } (or (app == 27) (app == 33) (app == 34)) {
+    r = ('_ail parse misc' app)
+  }
+  if (isType r 'list') {
+    _ail_results = (at 2 r)
+    comment 'Largest first (insertion sort on width x height).'
+    for i (size _ail_results) {
+      local 'item' (at i _ail_results)
+      local 'area' ((at 3 item) * (at 4 item))
+      local 'j' (i - 1)
+      repeatUntil (j < 1) {
+        if (((at 3 (at j _ail_results)) * (at 4 (at j _ail_results))) >= area) {
+          atPut (j + 1) _ail_results item
+          j = -1
+        } else {
+          atPut (j + 1) _ail_results (at j _ail_results)
+          j += -1
+        }
+      }
+      if (j == 0) {
+        atPut 1 _ail_results item
+      }
+    }
+    _ail_count = (maximum (at 1 r) (size _ail_results))
+    comment 'the result closest to the center of the image'
+    _ail_closest = 0
+    local 'best' 0
+    for k (size _ail_results) {
+      local 'dx' ((at 1 (at k _ail_results)) - 320)
+      local 'dy' ((at 2 (at k _ail_results)) - 240)
+      local 'dist' ((dx * dx) + (dy * dy))
+      if (or (_ail_closest == 0) (dist < best)) {
+        _ail_closest = k
+        best = dist
+      }
+    }
+  }
+}
+
+to 'AI Lens Pro value' property index {
+  comment 'A property of result number index (1 = largest), or of the first result with that name or ID. Color is an RGB color for color recognition.'
+  '_ail setup'
+  local 'n' index
+  if (not (isType index 'number')) {
+    n = ('AI Lens Pro find' index)
+  }
+  local 'i' ('[data:find]' property ('[data:makeList]' 'x' 'y' 'width' 'height' 'id' 'name' 'confidence' 'color'))
+  if (or (i < 1) (n < 1) (n > (size _ail_results))) {
+    if (property == 'name') {return ''}
+    return 0
+  }
+  return (at i (at n _ail_results))
+}
+
+to '_ail i2c' cmd params count {
+  comment 'Sends packet AA command length params crc8. With count > 0, reads count bytes plus a crc8. Returns the bytes, or an empty byte array on errors. One transaction at a time; a lock older than 200 ms is ignored.'
+  local 'n' (size params)
+  local 'pkt' ('[data:newByteArray]' (n + 4))
+  atPut 1 pkt 170
+  atPut 2 pkt cmd
+  atPut 3 pkt n
+  for i n {
+    atPut (i + 3) pkt (at i params)
+  }
+  local 'data' pkt
+  local 'len' (n + 3)
+  local 'raw' ('[data:newByteArray]' (count + 1))
+  for pass 2 {
+    comment 'CRC-8, polynomial 7: first of the packet, then of the reply'
+    local 'crc' 0
+    for i len {
+      crc = (crc ^ (at i data))
+      repeat 8 {
+        crc = (crc << 1)
+        if (crc > 255) {
+          crc = ((crc & 255) ^ 7)
+        }
+      }
+    }
+    if (pass == 1) {
+      atPut (n + 4) pkt crc
+      waitUntil (or (_ail_lock == 0) (((millisOp) - _ail_lock) > 200))
+      _ail_lock = (maximum 1 (millisOp))
+      '[sensors:i2cWrite]' _ail_addr pkt
+      waitMillis 2
+      if (count > 0) {
+        '[sensors:i2cRead]' _ail_addr raw
+      }
+      _ail_lock = 0
+      if (count < 1) {
+        return raw
+      }
+      data = raw
+      len = count
+    } (crc != (at (count + 1) raw)) {
+      return ('[data:newByteArray]' 0)
+    }
+  }
+  return ('[data:copyFromTo]' raw 1 count)
+}
+
+to '_ail lower' s {
+  s = ('[data:join]' '' s)
+  local 'out' ''
+  for i (size s) {
+    local 'c' ('[data:unicodeAt]' i s)
+    if (and (c >= 65) (c <= 90)) {
+      c = (c + 32)
+    }
+    out = ('[data:join]' out ('[data:unicodeString]' c))
+  }
+  return out
+}
+
+to '_ail parse boxes' app {
+  comment 'Balls (30) and cards (38): count, flags, then records of 10 or 8 bytes.'
+  local 'head' ('_ail read register' 100 2)
+  if ((size head) < 2) {
+    return false
+  }
+  local 'len' 8
+  local 'rc' (at 2 head)
+  if (app == 30) {
+    len = 10
+    rc = (rc & 31)
+  }
+  rc = (minimum rc (minimum (at 1 head) 16))
+  local 'raw' head
+  if (rc > 0) {
+    raw = ('_ail read register' 100 (2 + (rc * len)))
+    if ((size raw) < (2 + (rc * len))) {
+      return false
+    }
+  }
+  if (app == 30) {
+    _ail_ball_flags = (at 2 head)
+  }
+  local 'found' ('[data:makeList]')
+  for k rc {
+    local 'b' (3 + ((k - 1) * len))
+    local 'id' (at b raw)
+    local 'name' 'ball'
+    local 'w' ('_ail u16' raw (b + 6))
+    local 'h' w
+    if (app == 30) {
+      h = ('_ail u16' raw (b + 8))
+    } else {
+      name = id
+      if (id < (size _ail_card_names)) {
+        name = (at (id + 1) _ail_card_names)
+      }
+    }
+    '[data:addLast]' ('[data:makeList]' ('_ail u16' raw (b + 2)) ('_ail u16' raw (b + 4)) w h id name (minimum 100 (at (b + 1) raw)) 0) found
+  }
+  return ('[data:makeList]' (at 1 head) found)
+}
+
+to '_ail parse color' {
+  local 'head' ('_ail read register' 100 7)
+  if ((size head) < 7) {
+    return false
+  }
+  local 'found' ('[data:makeList]')
+  if ((at 1 head) == 1) {
+    comment 'basic colors: one result for the center of the image'
+    local 'n' (minimum 12 (at 7 head))
+    local 'raw' head
+    if (n > 0) {
+      raw = ('_ail read register' 100 (7 + n))
+      if ((size raw) < (7 + n)) {
+        return false
+      }
+    }
+    local 'id' (at 2 raw)
+    if (id > 0) {
+      local 'name' ('_ail text' raw 8 n)
+      if (and (name == '') (id <= 6)) {
+        name = (at id ('[data:split]' 'red,green,blue,white,black,yellow' ','))
+      }
+      local 'rgb' (((at 4 raw) << 16) | (((at 5 raw) << 8) | (at 6 raw)))
+      '[data:addLast]' ('[data:makeList]' 320 240 0 0 id name (minimum 100 (at 3 raw)) rgb) found
+    }
+    return ('[data:makeList]' (size found) found)
+  }
+  comment 'learned colors'
+  local 'rc' (minimum (at 3 head) (minimum (at 2 head) 10))
+  local 'raw' head
+  if (rc > 0) {
+    raw = ('_ail read register' 100 (3 + (rc * 27)))
+    if ((size raw) < (3 + (rc * 27))) {
+      return false
+    }
+  }
+  local 'off' 4
+  for k rc {
+    if ((off + 14) <= (size raw)) {
+      local 'n' (minimum 12 (at (off + 14) raw))
+      local 'rgb' (((at (off + 11) raw) << 16) | (((at (off + 12) raw) << 8) | (at (off + 13) raw)))
+      '[data:addLast]' ('[data:makeList]' ('_ail u16' raw (off + 3)) ('_ail u16' raw (off + 5)) ('_ail u16' raw (off + 7)) ('_ail u16' raw (off + 9)) ('_ail u16' raw off) ('_ail text' raw (off + 15) n) (minimum 100 (at (off + 2) raw)) rgb) found
+      off += (15 + n)
+    }
+  }
+  return ('[data:makeList]' (at 2 head) found)
+}
+
+to '_ail parse face' {
+  local 'head' ('_ail read register' 100 15)
+  if ((size head) < 15) {
+    return false
+  }
+  local 'n' (at 15 head)
+  local 'raw' ('_ail read register' 100 (16 + n))
+  if ((size raw) < (16 + n)) {
+    raw = ('_ail read register' 100 (15 + n))
+    if ((size raw) < (15 + n)) {
+      return false
+    }
+  }
+  local 'id' (at 2 raw)
+  if (id == 255) {
+    id = 0
+  }
+  _ail_blinks = (at 4 raw)
+  _ail_mouth = (at 5 raw)
+  local 'x1' ('_ail u16' raw 7)
+  local 'y1' ('_ail u16' raw 9)
+  local 'x2' ('_ail u16' raw 11)
+  local 'y2' ('_ail u16' raw 13)
+  local 'name' ''
+  if (and ((at 1 raw) == 1) (id > 0)) {
+    name = ('_ail text' raw 16 n)
+  }
+  local 'found' ('[data:makeList]')
+  if (and ((at 6 raw) != 0) (or (x1 != x2) (y1 != y2))) {
+    '[data:addLast]' ('[data:makeList]' ((x1 + x2) / 2) ((y1 + y2) / 2) (maximum 0 (x2 - x1)) (maximum 0 (y2 - y1)) id name (minimum 100 (at 3 raw)) 0) found
+  }
+  local 'count' (size found)
+  if ((size raw) >= (16 + n)) {
+    count = (at (16 + n) raw)
+  }
+  return ('[data:makeList]' count found)
+}
+
+to '_ail parse labeled' app {
+  comment 'Objects (31) and expressions (35): records with a box and a label. Expression records have one extra byte in front.'
+  local 's' 0
+  local 'maxLabel' 16
+  local 'maxCount' 8
+  if (app == 35) {
+    s = 1
+    maxLabel = 12
+    maxCount = 10
+  }
+  local 'head' ('_ail read register' 100 2)
+  if ((size head) < 2) {
+    return false
+  }
+  local 'rc' (minimum (at 2 head) (minimum (at 1 head) maxCount))
+  local 'raw' head
+  if (rc > 0) {
+    local 'len' (2 + (rc * ((11 + s) + maxLabel)))
+    raw = ('_ail read register' 100 len)
+    if ((size raw) < len) {
+      return false
+    }
+  }
+  local 'found' ('[data:makeList]')
+  local 'p' (3 + s)
+  for k rc {
+    if ((p + 10) <= (size raw)) {
+      local 'n' (minimum maxLabel (at (p + 10) raw))
+      local 'id' (at p raw)
+      local 'name' ('_ail text' raw (p + 11) n)
+      if (and (app == 35) (name == '') (id < 7)) {
+        name = (at (id + 1) ('[data:split]' 'angry,disgust,fear,happy,sad,surprise,neutral' ','))
+      }
+      '[data:addLast]' ('[data:makeList]' ('_ail u16' raw (p + 2)) ('_ail u16' raw (p + 4)) ('_ail u16' raw (p + 6)) ('_ail u16' raw (p + 8)) id name (minimum 100 (at (p + 1) raw)) 0) found
+      p += ((11 + s) + n)
+    }
+  }
+  return ('[data:makeList]' (at 1 head) found)
+}
+
+to '_ail parse misc' app {
+  comment 'Rhythm (27), line following (33) and object tracking (34).'
+  local 'found' ('[data:makeList]')
+  local 'raw' 0
+  if (app == 27) {
+    raw = ('_ail read register' 100 7)
+    if ((size raw) < 7) {
+      return false
+    }
+    _ail_rhythm = ('[data:makeList]' ((at 1 raw) == 1) ('_ail u16' raw 2) ('_ail u16' raw 4) (('_ail u16' raw 6) * 100))
+    return ('[data:makeList]' 0 found)
+  }
+  if (app == 33) {
+    raw = ('_ail read register' 100 20)
+    if ((size raw) < 20) {
+      return false
+    }
+    local 'detected' ((at 1 raw) != 0)
+    local 'offset' ('_ail u16' raw 15)
+    if (offset >= 32768) {
+      offset += -65536
+    }
+    local 'angle' ('_ail u16' raw 17)
+    if (angle >= 32768) {
+      angle += -65536
+    }
+    _ail_line = ('[data:makeList]' detected offset angle)
+    if detected {
+      '[data:addLast]' ('[data:makeList]' (320 + offset) 240 0 0 0 'line' 0 0) found
+    }
+    return ('[data:makeList]' (size found) found)
+  }
+  local 'head' ('_ail read register' 100 2)
+  if ((size head) < 2) {
+    return false
+  }
+  if ((at 2 head) < 1) {
+    _ail_lost = false
+    return ('[data:makeList]' 0 found)
+  }
+  raw = ('_ail read register' 100 13)
+  if ((size raw) < 13) {
+    return false
+  }
+  _ail_lost = ((at 5 raw) != 0)
+  '[data:addLast]' ('[data:makeList]' ('_ail u16' raw 6) ('_ail u16' raw 8) ('_ail u16' raw 10) ('_ail u16' raw 12) 0 'tracking' (minimum 100 (at 4 raw)) 0) found
+  return ('[data:makeList]' 1 found)
+}
+
+to '_ail parse pose' {
+  local 'head' ('_ail read register' 100 4)
+  if ((size head) < 4) {
+    return false
+  }
+  _ail_keypoints = (newList 34 -1)
+  local 'found' ('[data:makeList]')
+  if ((at 1 head) != 2) {
+    return ('[data:makeList]' 0 found)
+  }
+  local 'count' 0
+  if ((at 2 head) == 1) {
+    count = (at 3 head)
+  }
+  if ((minimum (at 4 head) count) < 1) {
+    return ('[data:makeList]' count found)
+  }
+  local 'raw' ('_ail read register' 100 108)
+  if ((size raw) < 84) {
+    return false
+  }
+  comment 'one person: id at 5, pose at 6, confidence at 7, box at 8..15, 17 keypoints (x, y) from 16; 65535 = not visible'
+  for k 34 {
+    local 'v' ('_ail u16' raw (14 + (k * 2)))
+    if (v == 65535) {
+      v = -1
+    }
+    atPut k _ail_keypoints v
+  }
+  local 'pose' (at 6 raw)
+  local 'name' ('_ail text' raw 85 (minimum 24 (at 84 raw)))
+  if (and (name == '') (pose >= 1) (pose <= 9)) {
+    name = (at pose ('[data:split]' 'standing,hand up,both hands up,squatting,bending,sitting,falling,kneeling,running' ','))
+  }
+  '[data:addLast]' ('[data:makeList]' ('_ail u16' raw 8) ('_ail u16' raw 10) ('_ail u16' raw 12) ('_ail u16' raw 14) pose name (minimum 100 (at 7 raw)) 0) found
+  return ('[data:makeList]' count found)
+}
+
+to '_ail parse simple' app {
+  comment 'Self learning (17), gesture (18), text (32), QR and barcodes (39): a header, then a label whose length is in the header.'
+  local 'i' ('[data:find]' app ('[data:makeList]' 17 18 32 39))
+  local 'headLen' (at i ('[data:makeList]' 4 13 3 14))
+  local 'raw' ('_ail read register' 100 headLen)
+  if ((size raw) < headLen) {
+    return false
+  }
+  local 'n' (at (at i ('[data:makeList]' 4 13 3 13)) raw)
+  if (n > 0) {
+    raw = ('_ail read register' 100 (headLen + n))
+    if ((size raw) < (headLen + n)) {
+      return false
+    }
+  }
+  local 'text' ('_ail text' raw (headLen + 1) n)
+  local 'found' ('[data:makeList]')
+  if (app == 18) {
+    if ((at 1 raw) != 0) {
+      if ((at 2 raw) < 1) {text = ''}
+      '[data:addLast]' ('[data:makeList]' ('_ail u16' raw 5) ('_ail u16' raw 7) ('_ail u16' raw 9) ('_ail u16' raw 11) (at 2 raw) text (minimum 100 (at 3 raw)) 0) found
+    }
+  } (app == 32) {
+    if (and ((at 1 raw) == 1) (text != '')) {'[data:addLast]' ('[data:makeList]' 0 0 0 0 0 text (minimum 100 (at 2 raw)) 0) found}
+  } (app == 39) {
+    comment 'id 1 = QR code, 2 = barcode'
+    if (and ((at 1 raw) != 0) (text != '')) {
+      '[data:addLast]' ('[data:makeList]' 0 0 0 0 (at 2 raw) text 100 0) found
+    }
+  } (and ((at 1 raw) != 0) ((at 2 raw) > 0)) {
+    '[data:addLast]' ('[data:makeList]' 0 0 0 0 (at 2 raw) text (minimum 100 (at 3 raw)) 0) found
+  }
+  return ('[data:makeList]' (size found) found)
+}
+
+to '_ail read app' {
+  comment 'Id of the active function, or -1 when the lens does not answer.'
+  '_ail setup'
+  local 'b' ('_ail read register' 0 1)
+  if ((size b) < 1) {
+    return -1
+  }
+  if (('[data:find]' (at 1 b) _ail_app_ids) < 1) {
+    return -1
+  }
+  return (at 1 b)
+}
+
+to '_ail read register' addr count {
+  comment 'Reads count bytes from a register in chunks of 10 bytes. Returns an empty byte array on errors.'
+  local 'result' ('[data:newByteArray]' 0)
+  repeatUntil ((size result) >= count) {
+    local 'a' (addr + (size result))
+    local 'n' (minimum 10 (count - (size result)))
+    local 'part' ('[data:newByteArray]' 0)
+    local 'tries' 0
+    repeatUntil (or ((size part) == n) (tries >= 3)) {
+      if (tries > 0) {waitMillis 2}
+      part = ('_ail i2c' 33 ('[data:makeList]' ((a >> 8) & 255) (a & 255) 0 n) n)
+      tries += 1
+    }
+    if ((size part) < n) {
+      return ('[data:newByteArray]' 0)
+    }
+    result = ('[data:join]' result part)
+  }
+  return result
+}
+
+to '_ail send' cmd payload {
+  comment 'Command for the active function: frame FF F9 command length payload, wrapped in I2C command 48.'
+  local 'n' (size payload)
+  local 'params' ('[data:newByteArray]' (n + 6))
+  atPut 1 params 0
+  atPut 2 params (n + 4)
+  atPut 3 params 255
+  atPut 4 params 249
+  atPut 5 params cmd
+  atPut 6 params n
+  for i n {
+    atPut (i + 6) params (at i payload)
+  }
+  local 'ignore' ('_ail i2c' 48 params 0)
+}
+
+to '_ail setup' {
+  if (_ail_addr != 96) {
+    _ail_addr = 96
+    _ail_lock = 0
+    _ail_app = 0
+    _ail_results = ('[data:makeList]')
+    _ail_count = 0
+    _ail_closest = 0
+    _ail_blinks = 0
+    _ail_mouth = 0
+    _ail_line = ('[data:makeList]' false 0 0)
+    _ail_lost = false
+    _ail_ball_flags = 0
+    _ail_rhythm = ('[data:makeList]' false 0 0 0)
+    _ail_keypoints = (newList 34 -1)
+    _ail_wifi_seq = 0
+    _ail_app_names = ('[data:split]' 'main menu,face recognition,self learning,gesture recognition,file manager,photos,camera,settings,rhythm recognition,ball recognition,object recognition,text recognition,line following,object tracking,expression recognition,pose recognition,color recognition,card recognition,QR and barcodes' ',')
+    _ail_app_ids = ('[data:split]' '1,16,17,18,19,20,21,22,27,30,31,32,33,34,35,36,37,38,39' ',' true)
+    _ail_card_names = ('[data:split]' '0,1,2,3,4,5,6,7,8,9,A,B,C,D,E,forward,turn around,left,right,stop,cat,dog,mouse,apple,pear,grapes,airplane,car,ship,pen,ruler,microbit,clock,cup,umbrella' ',')
+  }
+}
+
+to '_ail text' data i n {
+  comment 'UTF-8 text of n bytes starting at byte i.'
+  if (or (n <= 0) (((i + n) - 1) > (size data))) {
+    return ''
+  }
+  return ('[data:convertType]' ('[data:copyFromTo]' data i ((i + n) - 1)) 'string')
+}
+
+to '_ail u16' data i {
+  return ((at i data) | ((at (i + 1) data) << 8))
+}
+
+to '_ail wifi' kind seq {
+  comment 'Waits up to 650 ms for a WiFi message from the lens and acknowledges it. Returns a list: type state flags (empty on timeout). Kind 17 first asks the lens for its status.'
+  if (kind == 17) {
+    _ail_wifi_seq = ((_ail_wifi_seq % 255) + 1)
+    seq = _ail_wifi_seq
+    '_ail send' 66 ('[data:makeList]' seq)
+  }
+  local 'start' (millisOp)
+  repeatUntil (((millisOp) - start) > 650) {
+    local 'h' ('_ail read register' 16 8)
+    if ((size h) == 8) {
+      if (and ((at 1 h) == 165) ((at 2 h) == 1) ((at 3 h) != 0) ((at 4 h) == seq)) {if (or (kind < 0) ((at 3 h) == kind)) {
+        '_ail send' 67 ('[data:makeList]' (at 3 h) (at 4 h))
+        return ('[data:makeList]' (at 3 h) (at 5 h) (at 6 h))
+      }}
+    }
+    waitMillis 20
+  }
+  return ('[data:makeList]')
+}
+
+
+module 'Basic Sensors' Input
+author MicroBlocks
+version 1 2 
+tags tilt acceleration light sensor 
+choices accelerometerRange '1' '2' '4' '8' 
+description 'Provides blocks to read tilt in the three axes, acceleration, temperature and light level. Many boards come with this particular set of sensors, such as the micro:bit, the Circuit Playground Express, the Calliope or the Citilab ED1.'
+
+  spec 'r' '[sensors:tiltX]' 'tilt x'
+  spec 'r' '[sensors:tiltY]' 'tilt y'
+  spec 'r' '[sensors:tiltZ]' 'tilt z'
+  spec 'r' '[sensors:acceleration]' 'acceleration'
+  spec 'r' '[display:lightLevel]' 'light level'
+  spec 'r' '[sensors:temperature]' 'temperature (°C)'
+  spec 'r' '[sensors:magneticField]' 'magnetic field'
+  advanced
+  spec ' ' 'setAccelRange' 'set acceleration range _ g = 100' 'menu.accelerometerRange' '1'
+
+to setAccelRange n {
+  '[sensors:setAccelerometerRange]' (0 + n)
+}
+
+
+module 'LED Display' Output
+author MicroBlocks
+version 1 20 
+choices led_imageMenu heart 'small heart' yes no happy sad confused angry asleep surprised silly fabulous meh 't-shirt' 'roller skate' duck house tortoise butterfly 'stick figure' ghost sword giraffe skull umbrella snake rabbit cow 'quarter note' 'eight note' pitchfork target triangle 'left triangle' 'chess board' diamond 'small diamond' square 'small square' scissors 
+description 'Display primitives for the 5x5 LED display on the BBC micro:bit, Calliope mini and M5Atom Matrix. Boards with TFT displays (such as the Citilab ED1 or the M5Stack family) support these primitives with a simulated "fat pixel" display.
+'
+variables _stop_scrolling_text 
+
+  spec ' ' '[display:mbDisplay]' 'display _' 'microbitDisplay' 15237440
+  spec ' ' 'led_displayImage' 'display image _ : x _ y _' 'menu.led_imageMenu num num' 'happy' 1 1
+  spec ' ' '[display:mbDisplayOff]' 'clear display'
+  space
+  spec ' ' '[display:mbPlot]' 'plot x _ y _' 'num num' 3 3
+  spec ' ' '[display:mbUnplot]' 'unplot x _ y _' 'num num' 3 3
+  space
+  spec ' ' 'displayCharacter' 'display character _' 'str' 'A'
+  spec ' ' 'scroll_text' 'scroll text _ : pausing _ ms' 'str num' 'HELLO ROSA!' 100
+  spec ' ' 'stopScrollingText' 'stop scrolling'
+  advanced
+  spec ' ' 'set display color' 'set display color _' 'color'
+  spec 'r' 'led_image' 'LED image #BR# _' 'microbitDisplay' 15237440
+  spec ' ' 'display2x5Number' 'display number (0-99)  _' 'num' 10
+  space
+  spec 'r' '_led_namedImage' '_led_namedImage _' 'menu.led_imageMenu' 'happy'
+  spec 'r' '_led_imageData' '_led_imageData'
+
+to '_led_imageData' {
+  return 'heart:4685802,small heart:145728,yes:2269696,no:18157905,happy:15237440,sad:18284864,confused:22348096,angry:23036241,asleep:459616,surprised:4526090,silly:25984017,fabulous:15008639,meh:2236443,t-shirt:15154043,roller skate:11534104,duck:489702,house:10976708,tortoise:359872,butterfly:29332475,stick figure:18158564,ghost:23068334,sword:4657284,giraffe:10946627,skull:15171246,umbrella:6460398,snake:469859,rabbit:16104613,cow:4685361,quarter note:7573636,eight note:7590276,pitchfork:4357813,target:4681156,triangle:1026176,left triangle:32805985,chess board:11184810,diamond:4539716,small diamond:141440,square:33080895,small square:469440,scissors:20287859,'
+}
+
+to '_led_namedImage' name {
+  local 'data' ('_led_imageData')
+  local 'i' ('[data:find]' name data)
+  if (i == -1) {
+    comment 'Name not found'
+    return 0
+  }
+  local 'start' (('[data:find]' ':' data i) + 1)
+  local 'end' (('[data:find]' ',' data i) - 1)
+  return ('[data:convertType]' ('[data:copyFromTo]' data start end) 'number')
+}
+
+to display2x5Number number {
+  local 'font' ('[data:makeList]' 3247203 2164802 3181635 3214403 2165793 3214371 3247139 2164803 3244131 3214435)
+  local 'temp' ('[data:convertType]' number 'string')
+  if ((size temp) == 1) {
+    temp = ('[data:join]' '0' temp)
+  }
+  led_displayImage (at ((at 1 temp) + 1) font)
+  led_displayImage (at ((at 2 temp) + 1) font) 4 1
+}
+
+to displayCharacter s {
+  s = ('[data:join]' '' s)
+  if ((size s) == 0) {
+    '[display:mbDisplayOff]'
+    return 0
+  }
+  '[display:mbDrawShape]' ('[display:mbShapeForLetter]' (at 1 s)) 1 1
+}
+
+to led_displayImage imageName optionalX optionalY {
+  local 'image' imageName
+  if (isType image 'string') {
+    image = ('_led_namedImage' imageName)
+  }
+  '[display:mbDrawShape]' image (argOrDefault 2 1) (argOrDefault 3 1)
+}
+
+to led_image twentyFiveBitInt {
+  comment 'An LED image is a 25-bit integer'
+  return twentyFiveBitInt
+}
+
+to scroll_text text optionalDelay {
+  text = ('[data:join]' '' text)
+  local 'delay' 100
+  if ((pushArgCount) > 1) {
+    delay = optionalDelay
+  }
+  _stop_scrolling_text = (booleanConstant false)
+  if ('Pico:ed' == (boardType)) {
+    for position (((size text) * 6) + 18) {
+      if _stop_scrolling_text {return 0}
+      '[display:mbDisplayOff]'
+      '[tft:text]' text (17 - position) 0 (colorSwatch 125 125 125 255) 1 true
+      waitMillis (delay / 2)
+    }
+  } (or ('KidsIOT' == (boardType)) ('CodingBox' == (boardType))) {
+    for position (((size text) * 6) + 21) {
+      if _stop_scrolling_text {return 0}
+      '[tft:deferUpdates]'
+      '[tft:clear]'
+      '[tft:text]' text (128 - (6 * position)) 6 (colorSwatch 255 255 255 255) 6 false
+      '[tft:resumeUpdates]'
+      waitMillis (delay / 8)
+    }
+  } else {
+    for position (((size text) * 6) + 6) {
+      if _stop_scrolling_text {return 0}
+      for i (size text) {
+        '[display:mbDrawShape]' ('[display:mbShapeForLetter]' ('[data:unicodeAt]' i text)) (((i * 6) + 2) - position) 1
+      }
+      waitMillis delay
+    }
+  }
+}
+
+to 'set display color' color {
+  '[display:mbSetColor]' color
+}
+
+to stopScrollingText {
+  _stop_scrolling_text = (booleanConstant true)
+  waitMillis 10
+  '[display:mbDisplayOff]'
+}
+
+
+module 'Nezha Pro'
+author MicroBlocks
+version 1 2 
+choices nezhaPro_turnStyle 'nezhaPro;by shortest path' clockwise 'counter-clockwise' 
+choices nezhaPro_motor M1 M2 M3 M4 
+choices nezhaPro_forwardBack forward backward 
+choices nezhaPro_dir clockwise 'counter-clockwise' 
+description 'Support for Elecfreaks Nezha Pro.
+
+Use the "np set wheels" block to achieve precise distances and turns with a two-wheeled vehicle.
+Motors can be used as angle servos using the "np set angle" block.
+
+https://shop.elecfreaks.com/products/nezha-breakout-board-v2
+https://wiki.elecfreaks.com/en/microbit/expansion-board/nezha-v2/
+'
+variables nezhaPro_busy nezhaPro_leftWheel nezhaPro_rightWheel nezhaPro_circumference nezhaPro_axle 
+
+  spec ' ' 'nezhaPro_setWheels' 'np set wheels left _ right _ #BR# circumference _ mm axle _ mm' 'menu.nezhaPro_motor menu.nezhaPro_motor num num' 'M1' 'M2' 115 105
+  spec ' ' 'nezhaPro_move' 'np move _ for _ mm speed _ %' 'menu.nezhaPro_forwardBack num num' 'forward' 100 30
+  spec ' ' 'nezhaPro_turn' 'np turn _ by _ degrees speed _ %' 'menu.nezhaPro_dir num num' 'clockwise' 90 30
+  space
+  spec ' ' 'nezhaPro_runMotor' 'np run motor _ _ speed _ %' 'menu.nezhaPro_motor menu.nezhaPro_dir num' 'M1' 'clockwise' 30
+  spec ' ' 'nezhaPro_stopMotor' 'np stop motor _' 'menu.nezhaPro_motor' 'M1'
+  spec ' ' 'nezhaPro_stopAll' 'np stop all motors'
+  space
+  spec ' ' 'nezhaPro_rotateBy' 'np rotate _ _ by _ degrees speed _ %' 'menu.nezhaPro_motor menu.nezhaPro_dir num num' 'M1' 'clockwise' 90 30
+  spec ' ' 'nezhaPro_rotateTo' 'np rotate _ _ to _ degrees speed _ %' 'menu.nezhaPro_motor menu.nezhaPro_dir num num' 'M1' 'clockwise' 90 30
+  spec ' ' 'nezhaPro_setAngle' 'np set _ angle _ to _ degrees' 'menu.nezhaPro_motor menu.nezhaPro_turnStyle num' 'M1' 'nezhaPro;by shortest path' 0
+  space
+  spec 'r' 'nezhaPro_readSpeed' 'np speed _' 'menu.nezhaPro_motor' 'M1'
+  spec 'r' 'nezhaPro_angle' 'np angle _' 'menu.nezhaPro_motor' 'M1'
+  advanced
+  spec 'r' 'nezhaPro_readTotalAngle' 'np total angle _' 'menu.nezhaPro_motor' 'M1'
+  spec ' ' 'nezhaPro_resetTotalAngle' 'np reset total angle _' 'menu.nezhaPro_motor' 'M1'
+  space
+  spec 'r' 'nezhaPro_version' 'np version'
+  space
+  spec ' ' '_nezhaPro_initWheels' '_nezhaPro_initWheels'
+  spec 'r' '_nezhaPro_motor' '_nezhaPro_motor _' 'menu.nezhaPro_motor' 'M1'
+  spec ' ' '_nezhaPro_sendCmd' '_nezhaPro_sendCmd _ motor _ dir _ args _ _ _' 'num num num num num num'
+  spec 'r' '_nezhaPro_readCmd' '_nezhaPro_readCmd _ bytes _ args _ _ _ _' 'num num num num num num'
+
+to '_nezhaPro_initWheels' {
+  if (0 != nezhaPro_leftWheel) {return}
+  comment 'Use default values'
+  nezhaPro_leftWheel = 'M1'
+  nezhaPro_rightWheel = 'M2'
+  nezhaPro_circumference = 115
+  nezhaPro_axle = 105
+}
+
+to '_nezhaPro_motor' motor {
+  if ('M1' == motor) {
+    return 1
+  } ('M2' == motor) {
+    return 2
+  } ('M3' == motor) {
+    return 3
+  } ('M4' == motor) {
+    return 4
+  }
+  return 1
+}
+
+to '_nezhaPro_readCmd' cmd resultCount arg1 arg2 arg3 arg4 {
+  waitUntil (nezhaPro_busy == 0)
+  nezhaPro_busy = 1
+  waitMillis 4
+  '[sensors:i2cWrite]' 16 ('[data:makeList]' (hexToInt 'FF') (hexToInt 'F9') arg1 arg2 cmd arg3 arg4 0)
+  waitMillis 4
+  local 'buf' (newList resultCount)
+  '[sensors:i2cRead]' 16 buf
+  nezhaPro_busy = 0
+  return buf
+}
+
+to '_nezhaPro_sendCmd' cmd motor dir arg1 arg2 arg3 {
+  waitUntil (nezhaPro_busy == 0)
+  nezhaPro_busy = 1
+  '[sensors:i2cWrite]' 16 ('[data:makeList]' (hexToInt 'FF') (hexToInt 'F9') motor dir cmd arg1 arg2 arg3)
+  nezhaPro_busy = 0
+}
+
+to nezhaPro_angle motor {
+  return (((nezhaPro_readTotalAngle motor) / 10) % 360)
+}
+
+to nezhaPro_move forwardBackward mm speed {
+  '_nezhaPro_initWheels'
+  speed = (maximum 0 (minimum speed 100))
+  local 'degrees' ((360 * mm) / nezhaPro_circumference)
+  if ('forward' == forwardBackward) {
+    nezhaPro_rotateBy nezhaPro_leftWheel 'clockwise' degrees speed
+    nezhaPro_rotateBy nezhaPro_rightWheel 'counter-clockwise' degrees speed
+  } else {
+    nezhaPro_rotateBy nezhaPro_leftWheel 'counter-clockwise' degrees speed
+    nezhaPro_rotateBy nezhaPro_rightWheel 'clockwise' degrees speed
+  }
+  waitMillis (((111 * degrees) / speed) + 200)
+}
+
+to nezhaPro_readSpeed motor {
+  local 'buf' ('_nezhaPro_readCmd' (hexToInt '47') 2 ('_nezhaPro_motor' motor) 0 0 (hexToInt 'F5') 0)
+  return (((at 2 buf) << 8) | (at 1 buf))
+}
+
+to nezhaPro_readTotalAngle motor {
+  local 'buf' ('_nezhaPro_readCmd' (hexToInt '46') 4 ('_nezhaPro_motor' motor) 0 0 (hexToInt 'F5') 0)
+  return (((((at 4 buf) << 24) | ((at 3 buf) << 16)) | ((at 2 buf) << 8)) | (at 1 buf))
+}
+
+to nezhaPro_resetTotalAngle motor {
+  '_nezhaPro_sendCmd' (hexToInt '1D') ('_nezhaPro_motor' motor) 0 0 (hexToInt 'F5') 0
+}
+
+to nezhaPro_rotateBy motor dir degrees speed {
+  dir = (ifExpression ('clockwise' == dir) 1 2)
+  if (degrees < 0) {
+    comment 'rotate the other direction'
+    dir = (ifExpression (1 == dir) 2 1)
+    degrees = (absoluteValue degrees)
+  }
+  comment 'Set the motor speed. Internal speed range is 0-900.'
+  speed = (9 * (maximum 0 (minimum speed 100)))
+  '_nezhaPro_sendCmd' (hexToInt '77') 0 0 ((speed >> 8) & 255) 0 (speed & 255)
+  '_nezhaPro_sendCmd' (hexToInt '70') ('_nezhaPro_motor' motor) dir ((degrees >> 8) & 255) 2 (degrees & 255)
+}
+
+to nezhaPro_rotateTo motor dir degrees speed {
+  degrees = (((nezhaPro_angle motor) - degrees) % 360)
+  nezhaPro_rotateBy motor dir degrees speed
+}
+
+to nezhaPro_runMotor motor dir speed {
+  dir = (ifExpression ('clockwise' == dir) 1 2)
+  speed = (maximum 0 (minimum speed 100))
+  '_nezhaPro_sendCmd' (hexToInt '60') ('_nezhaPro_motor' motor) dir speed (hexToInt 'F5') 0
+}
+
+to nezhaPro_setAngle motor turnStyle angle {
+  local 'turnMode' 1
+  if ('clockwise' == turnStyle) {
+    turnMode = 2
+  } ('counter-clockwise' == turnStyle) {
+    turnMode = 3
+  }
+  angle = (angle % 360)
+  '_nezhaPro_sendCmd' (hexToInt '5D') ('_nezhaPro_motor' motor) 0 ((angle >> 8) & 255) turnMode (angle & 255)
+  waitMillis 500
+}
+
+to nezhaPro_setWheels left right circumference axle {
+  nezhaPro_leftWheel = left
+  nezhaPro_rightWheel = right
+  nezhaPro_circumference = circumference
+  nezhaPro_axle = axle
+}
+
+to nezhaPro_stopAll {
+  nezhaPro_stopMotor 'M1'
+  nezhaPro_stopMotor 'M2'
+  nezhaPro_stopMotor 'M3'
+  nezhaPro_stopMotor 'M4'
+}
+
+to nezhaPro_stopMotor motor {
+  '_nezhaPro_sendCmd' (hexToInt '5F') ('_nezhaPro_motor' motor) 0 0 (hexToInt 'F5') 0
+}
+
+to nezhaPro_turn dir turnDegrees speed {
+  '_nezhaPro_initWheels'
+  speed = (maximum 0 (minimum speed 100))
+  comment 'Each wheel must move turnDegrees/360 * circumference of axle circle (pi * axel length)'
+  local 'mm' ((turnDegrees * (314 * nezhaPro_axle)) / 36000)
+  local 'degrees' ((360 * mm) / nezhaPro_circumference)
+  if ('clockwise' == dir) {
+    nezhaPro_rotateBy nezhaPro_leftWheel 'counter-clockwise' degrees speed
+    nezhaPro_rotateBy nezhaPro_rightWheel 'counter-clockwise' degrees speed
+  } else {
+    nezhaPro_rotateBy nezhaPro_leftWheel 'clockwise' degrees speed
+    nezhaPro_rotateBy nezhaPro_rightWheel 'clockwise' degrees speed
+  }
+  waitMillis (((111 * degrees) / speed) + 200)
+}
+
+to nezhaPro_version {
+  local 'version' ('_nezhaPro_readCmd' (hexToInt '88') 3 0 0 0 0 0)
+  return ('[data:joinStrings]' version '.')
+}
+
+
+module 'Planet X Support' Comm
+author 'Elecfreaks Team'
+version 1 5 
+choices planetXOnOff off on 
+choices planetXBasicColor red green blue white black yellow 
+choices planetXLetterCard A B C D E 
+choices planetXPort J1 J2 J3 J4 
+choices planetXNumberCard '0' '1' '2' '3' '4' '5' '6' '7' '8' '9' 
+choices planetXObjectValue 'x coordinate' 'y coordinate' width height 'confidence (%)' id 
+description 'Shared Planet X menus, J-port pin mapping, I2C clock selection, FIFO transaction lock and sensor communication.
+Import this as an implementation dependency.'
+variables _planetX_i2cRequestBusy _planetX_i2cQueue 
+
+  spec 'r' '_planetX_jPortPin' '_planetX_jPortPin _ _' 'auto auto' 'J1' 'A'
+  space
+  spec ' ' '_planetX_i2cSetClock' '_planetX_i2cSetClock'
+  spec 'r' '_planetX_i2cAcquire' '_planetX_i2cAcquire'
+  spec ' ' '_planetX_i2cRelease' '_planetX_i2cRelease'
+  spec 'r' '_planetX_i2cExists' '_planetX_i2cExists _' 'auto' 0
+  spec 'r' '_planetX_i2cRead' '_planetX_i2cRead _ _' 'auto auto' 0 0
+  spec 'r' '_planetX_i2cReadReg' '_planetX_i2cReadReg _ _' 'auto auto' 0 0
+  spec 'r' '_planetX_i2cReadUInt16LE' '_planetX_i2cReadUInt16LE _ _' 'auto auto' 0 0
+  spec 'r' '_planetX_i2cWrite' '_planetX_i2cWrite _ _' 'auto auto' 0 0
+
+to '_planetX_i2cAcquire' {
+  if (_planetX_i2cQueue == 0) {_planetX_i2cQueue = ('[data:makeList]')}
+  local 'request' ('[data:newByteArray]' 1 0)
+  '[data:addLast]' request _planetX_i2cQueue
+  if (('[data:find]' request _planetX_i2cQueue) < 1) {
+    return false
+  }
+  local 'start' (millisOp)
+  comment 'RFID may hold this bus for 2500 ms; allow time for it to restore hardware I2C before a queued sensor gives up.'
+  repeatUntil (and (not _planetX_i2cRequestBusy) ((at 1 _planetX_i2cQueue) == request)) {
+    if ((millisSince start) >= 3000) {
+      local 'index' ('[data:find]' request _planetX_i2cQueue)
+      if (index > 0) {
+        '[data:delete]' index _planetX_i2cQueue
+      }
+      return false
+    }
+    waitMillis 1
+  }
+  _planetX_i2cRequestBusy = true
+  return true
+}
+
+to '_planetX_i2cExists' addr {
+  if (not ('_planetX_i2cAcquire')) {return false}
+  '_planetX_i2cSetClock'
+  local 'present' ('[sensors:i2cExists]' addr)
+  '_planetX_i2cRelease'
+  return present
+}
+
+to '_planetX_i2cRead' addr bytes {
+  if (or ((size bytes) <= 0) ((size bytes) > 32)) {return false}
+  if (not ('_planetX_i2cAcquire')) {return false}
+  '_planetX_i2cSetClock'
+  local 'read' false
+  if ('[sensors:i2cExists]' addr) {
+    read = (('[sensors:i2cRead]' addr bytes) == (size bytes))
+  }
+  '_planetX_i2cRelease'
+  return read
+}
+
+to '_planetX_i2cReadReg' addr reg {
+  if (not ('_planetX_i2cAcquire')) {return 0}
+  '_planetX_i2cSetClock'
+  local 'buf' ('[data:newByteArray]' 1 0)
+  local 'value' 0
+  if ('[sensors:i2cExists]' addr) {
+    '[sensors:i2cWrite]' addr ('[data:makeList]' reg) false
+    if (('[sensors:i2cRead]' addr buf) == 1) {
+      value = (at 1 buf)
+    }
+  }
+  '_planetX_i2cRelease'
+  return value
+}
+
+to '_planetX_i2cReadUInt16LE' addr reg {
+  if (not ('_planetX_i2cAcquire')) {return 0}
+  '_planetX_i2cSetClock'
+  local 'buf' ('[data:newByteArray]' 2 0)
+  local 'value' 0
+  if ('[sensors:i2cExists]' addr) {
+    '[sensors:i2cWrite]' addr ('[data:makeList]' reg) false
+    if (('[sensors:i2cRead]' addr buf) == 2) {
+      value = ((at 1 buf) + ((at 2 buf) << 8))
+    }
+  }
+  '_planetX_i2cRelease'
+  return value
+}
+
+to '_planetX_i2cRelease' {
+  if (not _planetX_i2cRequestBusy) {return}
+  '[data:delete]' 1 _planetX_i2cQueue
+  _planetX_i2cRequestBusy = false
+}
+
+to '_planetX_i2cSetClock' {
+  local 'hz' 200000
+  local 'board' (boardType)
+  if (or (board == 'micro:bit v2') (board == 'micro:bit')) {
+    comment 'Nordic Wire maps a 200 kHz request to 250 kHz. Use standard mode.'
+    hz = 100000
+  }
+  '[sensors:i2cSetClockSpeed]' hz
+}
+
+to '_planetX_i2cWrite' addr bytes {
+  if (not ('_planetX_i2cAcquire')) {return false}
+  '_planetX_i2cSetClock'
+  local 'present' ('[sensors:i2cExists]' addr)
+  if present {
+    '[sensors:i2cWrite]' addr bytes
+  }
+  '_planetX_i2cRelease'
+  return present
+}
+
+to '_planetX_jPortPin' port signal {
+  local 'board' (boardType)
+  local 'pins' 0
+  if (or (board == 'micro:bit v2') (board == 'micro:bit')) {
+    pins = ('[data:makeList]' 1 8 2 12 13 14 15 16)
+  } (board == 'Nezha for ESP32') {
+    pins = ('[data:makeList]' 4 5 6 7 15 16 17 18)
+  } else {
+    stopTask
+    return -1
+  }
+  local 'index' ('[data:find]' port ('[data:makeList]' 'J1' 'J2' 'J3' 'J4'))
+  if (or (index < 1) (not (or (signal == 'A') (signal == 'B')))) {
+    stopTask
+    return -1
+  }
+  local 'pinIndex' ((2 * index) - 1)
+  if (signal == 'B') {
+    pinIndex += 1
+  }
+  return (at pinIndex pins)
+}
+
