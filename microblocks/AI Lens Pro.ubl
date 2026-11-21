@@ -13,19 +13,19 @@ description 'ELECFREAKS PlanetX AI Lens Pro (EF05074) AI camera over I2C.
 Faces, expressions, gestures, poses, objects, balls, cards, colors, lines, text (OCR), QR and barcodes, object tracking, self learning and rhythm.
 
 How to use:
-1. AI Lens Pro init (on LMS-ESP32: expand it and use SDA 5, SCL 4)
-2. AI Lens Pro switch to ... (for example card recognition)
-3. In a loop: AI Lens Pro update, then use sees, count and "x of result 1".
+1. AI Lens Pro init (on LMS-ESP32: expand it and use whatever wires you plugged the camera in)
+2. AI Lens Pro switch to app. For example card recognition.
+3. In a loop: AI Lens Pro update, then use AI Lens Pro reporter block with (some property).
 
 Results are sorted largest first. Positions are centers in a 640 x 480 image. Confidence is 0..100.
 
-micro:bit: connect to the I2C port of a PlanetX / Nezha board (P19, P20).
+micro:bit: connect to the I2C port of a PlanetX / Nezha board (SDA on P20, is SCL on P19).
 
 By Anton''s Mindstorms, antonsmindstorms.com. License: GPL-3.0.
 '
 variables _ail_addr _ail_lock _ail_app _ail_results _ail_count _ail_closest _ail_blinks _ail_mouth _ail_line _ail_lost _ail_ball_flags _ail_rhythm _ail_keypoints _ail_wifi_seq _ail_app_names _ail_app_ids _ail_card_names
 
-  spec ' ' 'AI Lens Pro init' 'AI Lens Pro init : SDA pin _ SCL pin _' 'num num' 5 4
+  spec ' ' 'AI Lens Pro init' 'AI Lens Pro init : SDA pin _ SCL pin _' 'num num' 20 19
   spec ' ' 'AI Lens Pro switch to' 'AI Lens Pro switch to _' 'menu.ail_apps' 'card recognition'
   spec ' ' 'AI Lens Pro update' 'AI Lens Pro update'
   spec ' ' 'AI Lens Pro light' 'AI Lens Pro light _ %' 'num' 80
