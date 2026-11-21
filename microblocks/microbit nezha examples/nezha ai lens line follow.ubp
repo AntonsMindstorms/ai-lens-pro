@@ -4,7 +4,7 @@ version 1 0
 description ''
 variables speed turn 
 
-script 154 62 {
+script 154 54 {
 whenStarted
 'AI Lens Pro init'
 'AI Lens Pro switch to' 'line following'
@@ -19,10 +19,6 @@ forever {
     nezhaPro_stopAll
   }
 }
-}
-
-script 786 497 {
-nezhaPro_stopAll
 }
 
 
@@ -53,21 +49,21 @@ By Anton''s Mindstorms, antonsmindstorms.com. License: GPL-3.0.
 '
 variables _ail_addr _ail_lock _ail_app _ail_results _ail_count _ail_closest _ail_blinks _ail_mouth _ail_line _ail_lost _ail_ball_flags _ail_rhythm _ail_keypoints _ail_wifi_seq _ail_app_names _ail_app_ids _ail_card_names 
 
-  spec ' ' 'AI Lens Pro init' 'AI Lens Pro init : SDA pin _ SCL pin _' 'num num' 20 19
-  spec ' ' 'AI Lens Pro switch to' 'AI Lens Pro switch to _' 'menu.ail_apps' 'card recognition'
-  spec ' ' 'AI Lens Pro update' 'AI Lens Pro update'
-  spec ' ' 'AI Lens Pro light' 'AI Lens Pro light _ %' 'num' 80
+  spec ' ' 'AI Lens Pro init' 'Lens init : SDA pin _ SCL pin _' 'num num' 20 19
+  spec ' ' 'AI Lens Pro switch to' 'Lens switch to _' 'menu.ail_apps' 'card recognition'
+  spec ' ' 'AI Lens Pro update' 'Lens read results'
+  spec ' ' 'AI Lens Pro light' 'Lens light _ %' 'num' 80
   space
-  spec 'r' 'AI Lens Pro sees' 'AI Lens Pro sees _' 'auto.ail_things' 'anything'
-  spec 'r' 'AI Lens Pro count' 'AI Lens Pro count'
-  spec 'r' 'AI Lens Pro value' 'AI Lens Pro _ of result _' 'menu.ail_props auto' 'x' 1
-  spec 'r' 'AI Lens Pro find' 'AI Lens Pro find _' 'auto.ail_things' 'stop'
-  spec 'r' 'AI Lens Pro info' 'AI Lens Pro _' 'menu.ail_info' 'name'
-  spec 'r' 'AI Lens Pro keypoint' 'AI Lens Pro pose _ _' 'menu.ail_keypoints menu.ail_xy' 'nose' 'x'
+  spec 'r' 'AI Lens Pro sees' 'Lens sees _' 'auto.ail_things' 'anything'
+  spec 'r' 'AI Lens Pro count' 'Lens result count'
+  spec 'r' 'AI Lens Pro value' 'Lens get _ of result _' 'menu.ail_props auto' 'x' 1
+  spec 'r' 'AI Lens Pro find' 'Lens result number of _' 'auto.ail_things' 'stop'
+  spec 'r' 'AI Lens Pro info' 'Lens get _' 'menu.ail_info' 'name'
+  spec 'r' 'AI Lens Pro keypoint' 'Lens get _ of _ pose' 'menu.ail_xy menu.ail_keypoints' 'x' 'nose'
   space
-  spec ' ' 'AI Lens Pro command' 'AI Lens Pro _ : _' 'menu.ail_cmds auto' 'learn ID' ''
-  spec ' ' 'AI Lens Pro text region' 'AI Lens Pro text region x1 _ y1 _ x2 _ y2 _' 'num num num num' 0 0 640 480
-  spec ' ' 'AI Lens Pro connect WiFi' 'AI Lens Pro connect WiFi _ password _' 'str str' 'network' 'password'
+  spec ' ' 'AI Lens Pro command' 'Lens do _ : _' 'menu.ail_cmds auto' 'learn ID' ''
+  spec ' ' 'AI Lens Pro text region' 'Lens text region x1 _ y1 _ x2 _ y2 _' 'num num num num' 0 0 640 480
+  spec ' ' 'AI Lens Pro connect WiFi' 'Lens connect WiFi _ password _' 'str str' 'network' 'password'
   space
   spec ' ' '_ail setup' '_ail setup'
   spec 'r' '_ail i2c' '_ail i2c command _ params _ reply size _' 'num auto num' 0 '' 0
@@ -269,7 +265,7 @@ to 'AI Lens Pro init' sda scl {
   sayIt 'AI Lens Pro not found. Check the cable and switch the lens on.'
 }
 
-to 'AI Lens Pro keypoint' part axis {
+to 'AI Lens Pro keypoint' axis part {
   comment 'Pose recognition: x or y of a body point of the person. -1 when that point is not visible.'
   '_ail setup'
   local 'k' ('[data:find]' part ('[data:split]' 'nose,left eye,right eye,left ear,right ear,left shoulder,right shoulder,left elbow,right elbow,left wrist,right wrist,left hip,right hip,left knee,right knee,left ankle,right ankle' ','))
