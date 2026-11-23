@@ -1,6 +1,6 @@
 # AI Lens Pro for LEGO SPIKE Prime, MicroBlocks and MicroPython
 
-**Give your LEGO robot AI vision.** Free libraries and classroom-ready examples for the **ELECFREAKS PlanetX AI Lens Pro** (EF05074) AI camera: follow a line, obey picture cards, and recognize poses with a LEGO® SPIKE™ Prime robot, an [LMS-ESP32](https://www.antonsmindstorms.com/product/powerful-lms-esp32-board-for-spike-and-mindstorms/) and Pybricks. Program it with blocks (MicroBlocks, Pybricks Blocks) or with Python (MicroPython).
+**Give your LEGO robot AI vision.** Free UNOFFICIAL libraries and classroom-ready examples for the **PlanetX AI Lens Pro** (EF05074) AI camera: follow a line, obey picture cards, and recognize poses with a LEGO® SPIKE™ Prime robot, an [LMS-ESP32](https://www.antonsmindstorms.com/product/powerful-lms-esp32-board-for-spike-and-mindstorms/) and Pybricks. Program it with blocks (MicroBlocks, Pybricks Blocks) or with Python (MicroPython).
 
 Made by [Anton's Mindstorms](https://www.antonsmindstorms.com) for STEM teachers, robotics clubs and makers.
 
